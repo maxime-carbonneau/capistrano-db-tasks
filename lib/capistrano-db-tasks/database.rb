@@ -63,11 +63,17 @@ module Database
     end
 
     def dump_cmd
+      _cmd = _arguments = nil
       if mysql?
-        "mysqldump #{credentials} #{database} #{dump_cmd_opts}"
+        # "mysqldump #{credentials} #{database} #{dump_cmd_opts}"
+        _cmd = :mysqldump
+        _arguments = "#{credentials} #{database} #{dump_cmd_opts}"
       elsif postgresql?
-        "#{pgpass} pg_dump #{credentials} #{database} #{dump_cmd_opts}"
+        # "#{pgpass} pg_dump #{credentials} #{database} #{dump_cmd_opts}"
+        _cmd = :pg_dump
+        _arguments = "#{credentials} #{database} #{dump_cmd_opts}"
       end
+      [_cmd, _arguments]
     end
 
     def import_cmd(file)
@@ -117,7 +123,21 @@ module Database
     end
 
     def dump
-      @cap.execute "cd #{@cap.current_path} && #{dump_cmd} | #{compressor.compress('-', db_dump_file_path)}"
+      # @cap.execute "cd #{@cap.current_path} && #{dump_cmd} | #{compressor.compress('-', db_dump_file_path)}"
+      with_option = {}
+      # _dump_cmd = nil
+      if postgresql? && @config['password']
+        with_option[:pgpassword] = @config['password']
+        # _dump_cmd = :pg_dump
+      elsif mysql?
+        # _dump_cmd = :mysqldump
+      end
+      @cap.within @cap.current_path do
+        @cap.with with_option do
+          @cap.execute *dump_cmd, "| #{compressor.compress('-', db_dump_file_path)}"
+          # @cap.execute _dump_cmd, "#{credentials} #{database} #{dump_cmd_opts} | #{compressor.compress('-', db_dump_file_path)}"
+        end
+      end
       self
     end
 
